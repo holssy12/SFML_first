@@ -60,5 +60,11 @@
     <ClCompile Include="Teaching_1.cpp">
       <Filter>리소스 파일\소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="Midterm.cpp">
+      <Filter>리소스 파일\소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="_Ready_01.cpp">
+      <Filter>리소스 파일\소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

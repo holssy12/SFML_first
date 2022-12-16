@@ -1,81 +1,28 @@
 #include <SFML/Graphics.hpp>
-#include <Windows.h>
 #include <iostream>
-#include <string>
 #include <vector>
+#include <string>
+#include <cmath>
 
-#define WX 1200
-#define WY 800
-
-#define GOAL 3
+#define WX 800
+#define WY 600
 
 using namespace std;
 using namespace sf;
 
-int stage = 0;
+int status = 0;
 
-int goal_me = 0;
-int goal_enemy = 0;
+/***********************************************************************************************
+ 
+ 벡터 속도를 잘 생각하자...
 
-/*-------------------------------------------------------------------------------------------------*/
+***********************************************************************************************/
 
-class Me {
-public:
-	RectangleShape body;
-
-	Me();
-
-	void update();
-	void draw(RenderWindow& _window);
-};
-
-Me::Me() {
-	body = RectangleShape(Vector2f(50.0f, 200.0f));
-	body.setFillColor(Color::Blue);
-	body.setPosition(body.getSize().x, WY / 2 - body.getSize().y / 2);
-}
-
-void Me::update() {
-
-}
-
-void Me::draw(RenderWindow& _window) {
-	_window.draw(body);
-}
-
-/*-------------------------------------------------------------------------------------------------*/
-
-class Enemy {
-public:
-	RectangleShape body;
-	float dy = 2.0f;
-
-	Enemy();
-
-	void update();
-	void draw(RenderWindow& _window);
-};
-
-Enemy::Enemy() {
-	body = RectangleShape(Vector2f(50.0f, 200.0f));
-	body.setFillColor(Color::Red);
-	body.setPosition(WX - body.getSize().x * 2, WY / 2 - body.getSize().y / 2);
-}
-
-void Enemy::update() {
-	body.move(0, dy);
-}
-
-void Enemy::draw(RenderWindow& _window) {
-	_window.draw(body);
-}
-
-/*-------------------------------------------------------------------------------------------------*/
 
 class Ball {
 public:
 	CircleShape body;
-	float dx, dy;
+	float dx = 0, dy = 0;
 
 	Ball();
 
@@ -86,40 +33,9 @@ public:
 Ball::Ball() {
 	body = CircleShape(30.0f);
 	body.setFillColor(Color::Green);
-	body.setPosition(WX / 2 - body.getRadius(), WY / 2 - body.getRadius());
-
-	dx = rand() % 5 + 15;
-	dy = rand() % 5 + 15;
-
-	if (int(dx) % 2 == 0) dx = -dx;
-	if (int(dy) % 2 == 1) dy = -dy;
 }
 
 void Ball::update() {
-
-	Vector2f body_pos = body.getPosition();
-
-	if (body_pos.x <= 0 && dx <= 0) {
-		dx = -dx;
-		goal_enemy++;
-		stage = 0;
-		if (goal_enemy >= GOAL) stage = 3;
-		return;
-	}
-	if (body_pos.x + 2 * body.getRadius() >= WX && dx >= 0) {
-		dx = -dx;
-		goal_me++;
-		stage = 0;
-		if (goal_me >= GOAL) stage = 2;
-		return;
-	}
-	if (body_pos.y <= 0 && dy <= 0) {
-		dy = -dy;
-	}
-	if (body_pos.y + 2 * body.getRadius() >= WY && dy >= 0) {
-		dy = -dy;
-	}
-
 	body.move(dx, dy);
 }
 
@@ -127,47 +43,65 @@ void Ball::draw(RenderWindow& _window) {
 	_window.draw(body);
 }
 
+/***********************************************************************************************/
 
-/*-------------------------------------------------------------------------------------------------*/
-
-class Block {
+class StartArea {
 public:
 	RectangleShape body;
 
-	Block();
+	StartArea();
 
-	void update();
 	void draw(RenderWindow& _window);
 };
 
-Block::Block() {
-	body = RectangleShape(Vector2f(float(WX), 50.0f));
-	body.setFillColor(Color::Cyan);
-	body.setPosition(0, 150.0f);
+StartArea::StartArea() {
+	body = RectangleShape(Vector2f(150.0f, 150.0f));
+	body.setFillColor(Color::Blue);
+	body.setPosition(50, 50);
 }
 
-void Block::update() {
-
-}
-
-void Block::draw(RenderWindow& _window) {
+void StartArea::draw(RenderWindow& _window) {
 	_window.draw(body);
 }
 
+/***********************************************************************************************/
 
-/*-------------------------------------------------------------------------------------------------*/
+class TargetArea {
+public:
+	RectangleShape body;
 
+	TargetArea();
+
+	void draw(RenderWindow& _window);
+};
+
+TargetArea::TargetArea() {
+	body = RectangleShape(Vector2f(150.0f, 150.0f));
+	body.setFillColor(Color::White);
+	body.setPosition(600, 400);
+}
+
+void TargetArea::draw(RenderWindow& _window) {
+	_window.draw(body);
+}
+
+/***********************************************************************************************/
 
 class Game {
 public:
-	Me me;
-	Enemy enemy;
-	Ball ball;
-	Block block;
+	vector<Ball> balls;
+	StartArea sA;
+	TargetArea tA;
 
+	Time time;
+	Clock clock;
+
+	Text text;
 	Font font;
-	Text text_me_goal;
-	Text text_enemy_goal;
+
+	int makeFlag = 0;
+	
+	float tx = 0, ty = 0;
 
 	Game();
 
@@ -176,141 +110,120 @@ public:
 };
 
 Game::Game() {
-	font.loadFromFile("images/OpenSans-Bold.ttf");
-	text_me_goal.setFont(font);
-	text_me_goal.setCharacterSize(100);
-	text_me_goal.setFillColor(Color::Blue);
-	text_me_goal.setPosition(50.0f, 20.0f);
 
-	text_enemy_goal.setFont(font);
-	text_enemy_goal.setCharacterSize(100);
-	text_enemy_goal.setFillColor(Color::Red);
-	text_enemy_goal.setPosition(1050.0f, 20.0f);
+	clock.restart();
+
+	font.loadFromFile("images/OpenSans-Bold.ttf");
+	text.setFont(font);
+	text.setCharacterSize(60);	
+	text.setFillColor(Color::White);
+	text.setPosition(200, 300);
 }
 
 void Game::update() {
+	time = clock.getElapsedTime();
 
-	if (stage == 0) {
-		enemy.body.setPosition(WX - enemy.body.getSize().x * 2, WY / 2 - enemy.body.getSize().y / 2);
-		me.body.setPosition(me.body.getSize().x, WY / 2 - me.body.getSize().y / 2);
-		ball.body.setPosition(WX / 2 - ball.body.getRadius(), WY / 2 - ball.body.getRadius());
-		block.body.setPosition(0, 150.0f);
-		return;
+	float real_sec = time.asSeconds();
+	int sec = real_sec;
+
+	string buf;
+	buf = to_string(real_sec);
+	string result = "";
+
+	int cnt = 0;
+	int dot_flag = 0;
+
+	for (auto& c : buf) {
+		if (dot_flag) cnt++;
+		result = result + c;
+		if (c == '.') dot_flag = 1;
+		if (cnt == 2) break;
 	}
 
-	ball.update();
-	enemy.update();
+	text.setString(result);
 
-	FloatRect ball_area = ball.body.getGlobalBounds();
-	FloatRect me_area = me.body.getGlobalBounds();
-	FloatRect enemy_area = enemy.body.getGlobalBounds();
-	FloatRect block_area = block.body.getGlobalBounds();
+	if (sec % 2 == 0 && makeFlag == 1) makeFlag = 0;
 
-	if (ball_area.intersects(me_area) && ball.dx <= 0) {
-		ball.dx = -ball.dx;
-	}
-	if (ball_area.intersects(enemy_area) && ball.dx >= 0) {
-		ball.dx = -ball.dx;
-	}
-	if (ball_area.intersects(block_area) && ball.dy <= 0) {
-		ball.dy = -ball.dy;
+	else if (sec % 2 == 1 && makeFlag == 0) {
+
+		makeFlag = 1;
+
+		balls.push_back(Ball());
+
+		FloatRect tRect = tA.body.getGlobalBounds();
+		FloatRect sRect = sA.body.getGlobalBounds();
+
+		float sx = sRect.left + rand() % (int)sRect.width;
+		float sy = sRect.left + rand() % (int)sRect.width;
+
+		balls.back().body.setPosition(sx, sy);
+
+		tx = tRect.left + rand() % (int)tRect.width;
+		ty = tRect.top + rand() % (int)tRect.height;
+
+		// 속도를 바꾸려면 여기
+
+		float _dx = tx - sx;
+		float _dy = ty - sy;
+		float distance = sqrt(_dx * _dx + _dy * _dy);
+
+		int r = rand() % 5 + 1;
+
+		switch(r) {
+		case 1:
+			balls.back().body.setFillColor(Color::Red);
+			break;
+		case 2:
+			balls.back().body.setFillColor(Color::Magenta);
+			break;
+		case 3:
+			balls.back().body.setFillColor(Color::Green);
+			break;
+		case 4:
+			balls.back().body.setFillColor(Color::Yellow);
+			break;
+		case 5:
+			balls.back().body.setFillColor(Color::Cyan);
+			break;
+		}
+
+		float x = balls.back().dx = (_dx / distance) * r;
+		float y = balls.back().dy = (_dy / distance) * r;
+
+		cout << (_dx / distance) << ", " << (_dy/distance) << ", "<< sqrt(x * x + y * y) << endl;
 	}
 
-	if (enemy_area.top + enemy_area.height >= WY) {
-		enemy.dy = -enemy.dy;
-	}
-	if (enemy_area.intersects(block_area) && enemy.dy <= 0) {
-		enemy.dy = -enemy.dy;
+
+	for (auto& i : balls) {
+		i.update();
 	}
 
-	if (me_area.intersects(block_area)) {
-		me.body.setPosition(me.body.getPosition().x, block_area.top + block_area.height);
-	}
-
-
+	
 }
 
 void Game::draw(RenderWindow& _window) {
-	me.draw(_window);
-	enemy.draw(_window);
-	ball.draw(_window);
-	block.draw(_window);
-	
-	text_me_goal.setString(to_string(goal_me));
-	text_enemy_goal.setString(to_string(goal_enemy));
 
-	_window.draw(text_me_goal);
-	_window.draw(text_enemy_goal);
-}
+	if (status == 0) {
+		tA.draw(_window);
+		sA.draw(_window);
 
-/*-------------------------------------------------------------------------------------------------*/
-
-class Round {
-public:
-	RectangleShape body;
-	Texture start;
-	Texture win;
-	Texture lose;
-	
-	Round();
-
-	void update();
-	void draw(RenderWindow& _window);
-	bool isMouseInButton(RenderWindow& _window);
-};
-
-Round::Round() {
-
-	body = RectangleShape(Vector2f(400.0f, 200.0f));
-
-	start.loadFromFile("images/START.PNG");
-	win.loadFromFile("images/WIN.PNG");
-	lose.loadFromFile("images/LOSE.PNG");
-}
-
-void Round::update() {
-	if (stage == 0) {
-		body = RectangleShape(Vector2f(100.0f, 50.0f));
-		body.setTexture(&start);
-		body.setPosition(WX / 2 - body.getGlobalBounds().width / 2, 50.0f);
-	}
-	else if (stage == 2) {
-		body = RectangleShape(Vector2f(400.0f, 200.0f));
-		body.setTexture(&win);
-		body.setPosition(WX / 2 - body.getGlobalBounds().width, WY / 2 - body.getGlobalBounds().width);
-	}
-	else if (stage == 3) {
-		body = RectangleShape(Vector2f(400.0f, 200.0f));
-		body.setTexture(&lose);
-	}
-}
-
-void Round::draw(RenderWindow& _window) {
-	_window.draw(body);
-}
-
-bool Round::isMouseInButton(RenderWindow& _window) {
-	Vector2i mouse_pos = Mouse::getPosition(_window);
-	FloatRect body_rect = body.getGlobalBounds();
-
-	if (mouse_pos.x >= body_rect.left && mouse_pos.x <= body_rect.left + body_rect.width) {
-		if (mouse_pos.y >= body_rect.top && mouse_pos.y <= body_rect.top + body_rect.height) {
-			return true;
+		for (auto& i : balls) {
+			i.draw(_window);
 		}
 	}
 
-	return false;
+	/*else if (status == 1)*/ _window.draw(text);
 }
 
 int main() {
 
-	RenderWindow window(VideoMode(WX, WY), "test");
+	srand(time(NULL));
+
+	RenderWindow window(VideoMode(WX, WY), "TeachingFinal");
+
 	window.setFramerateLimit(60);
 
-
 	Game game;
-	Round round;
-
 
 	while (window.isOpen()) {
 
@@ -322,47 +235,25 @@ int main() {
 			case Event::Closed:
 				window.close();
 				break;
-
-			case Event::MouseButtonPressed:
-				
-				if (round.isMouseInButton(window)) {
-					stage = 1;
-				}
-				
-				break;
-
 			case Event::KeyPressed:
-
-				if (stage == 1) {
-					if (Keyboard::isKeyPressed(Keyboard::W)) {
-						game.me.body.move(0, -10.0f);
-					}
-					else if (Keyboard::isKeyPressed(Keyboard::S)) {
-						game.me.body.move(0, +10.0f);
-					}
+				if (Keyboard::isKeyPressed(Keyboard::Space)) {
+					status = 1;
 				}
-
 				break;
-
 			default:
 				break;
 			}
-		}
 
+		}
 
 		window.clear();
 
-		round.update();
-
-		game.update();
-		
-		if(stage==0 || stage==1) game.draw(window);
-
-		round.draw(window);
+		if(status == 0) game.update();
+		game.draw(window);
 
 		window.display();
-
 	}
+
 
 	return 0;
 }
